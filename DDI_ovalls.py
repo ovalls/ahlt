@@ -11,7 +11,7 @@ import numpy as np
 import keras
 from keras.preprocessing import sequence
 from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation, Embedding, Conv1D, GlobalMaxPooling1D
+from keras.layers import Dense, Dropout, Activation, Embedding, Conv1D, GlobalMaxPooling1D, MaxPooling1D, Flatten
 
 # --------- tokenize sentence -----------
 # -- Tokenize sentence, returning tokens and span offsets
@@ -187,6 +187,7 @@ tr_dict_words = {ni: indi for indi, ni in enumerate(set(tr_words_list))}
 tr_dict_words_labels = {ni: indi for indi, ni in enumerate(set(tr_words_list_labels))}
 #numbers = [dict_words[ni] for ni in words_list]
 #print('numbers: {}'.format(numbers))
+print('\n** tr_dict_words_labels: {}'.format(tr_dict_words_labels))
 
 #print(sentences_list[0][1])
 #print(dict_words[sentences_list[0][1]])
@@ -327,11 +328,19 @@ te_unique_words_labels = set(te_words_list_labels)
 #print('\n** unique words labels te: {}'.format(te_unique_words_labels))
 #print('len: {}'.format(len(te_unique_words_labels)))
 
+
+############################
+#######tr_dict_words = {ni: indi for indi, ni in enumerate(set(tr_words_list))}
+####### diccionary -- per a les LABELS hem de fer servir el de train, sinó desquadra pq. cada un li dóna el valor q vol
+#######tr_dict_words_labels = {ni: indi for indi, ni in enumerate(set(tr_words_list_labels))}
+
 # Dictionary of unique words with an index number assigned
 #different words in the set
 te_dict_words = {ni: indi for indi, ni in enumerate(set(te_words_list))}
-te_dict_words_labels = {ni: indi for indi, ni in enumerate(set(te_words_list_labels))}
-#print('te_dict_words_labels: {}'.format(te_dict_words_labels))
+####te_dict_words_labels = {ni: indi for indi, ni in enumerate(set(te_words_list_labels))}
+te_dict_words_labels = tr_dict_words_labels         # han de ser iguals els de train i els de test!
+print('** te_dict_words_labels: {}'.format(te_dict_words_labels))
+
 #numbers = [te_dict_words_labels[ni] for ni in te_labels_list[0]]
 #print('\n** numbers for labels: {}'.format(numbers))
 
@@ -359,6 +368,16 @@ y_train = np.asarray(tr_labels_list[0])         # Tinc [[3, 4, 3, 2, 1...]]: aix
 x_test = te_sentences_list
 y_test = np.asarray(te_labels_list[0])
 
+
+### A veure què tinc dins dels arrays ###
+print('\n** ---------- DINS ARRAYS ----------- **')
+print('* x_train[0]\n {}\n* x_train[100]\n {}'.format(x_train[0], x_train[100]))
+print('* y_train[0]\n {}\n* y_train[100]\n {}'.format(y_train[0], y_train[100]))
+print('* x_test[0]\n {}\n* x_test[100]\n {}'.format(x_test[0], x_test[100]))
+print('* y_test[0]\n {}\n* y_test[100]\n {}'.format(y_test[0], y_test[100]))
+print('** -------- FI DINS ARRAYS ---------- **')
+
+
 # ja els tinc categorical, no cal que posi keras.utils.to_categorical
 num_classes = np.max(y_train) + 1       # (4 categories + no-categoria)
 #print('Num classes: {}'.format(num_classes))
@@ -366,14 +385,16 @@ num_classes = np.max(y_train) + 1       # (4 categories + no-categoria)
 max_words = len(tr_unique_words) + 1    # Keras: input_dim: int > 0. Size of the vocabulary, i.e. maximum integer index + 1.
 embedding_dims = 300        # Keras: Dimension of the dense embedding.
 # number of filters = number of output channels
-filters = 256               # Keras: the dimensionality of the output space (i.e. the number of output filters in the convolution).
+#filters = 256               # Keras: the dimensionality of the output space (i.e. the number of output filters in the convolution).
+filters = 128
 # original 250
-kernel_size = 3             # Keras: length of the 1D convolution window.
-# original 5
+#kernel_size = 3             # Keras: length of the 1D convolution window.
+kernel_size = 5 # original
 
-hidden_dims = 300
+hidden_dims = 128
 # original 150
-batch_size = 64
+#batch_size = 64
+batch_size = 128
 epochs = 2
 
 # max number of words in a sentence
@@ -396,23 +417,26 @@ model = Sequential()
 
 # Created Embedding (Input) Layer (max_words) --> Convolutional Layer
 model.add(Embedding(max_words, embedding_dims, input_length=maxlen))
-model.add(Dropout(0.2))  # masks various input values
+#model.add(Dropout(0.2))  # masks various input values
 
 #print('\n ** Embedding Layer created **')
 
 # Create the convolutional layer
 model.add(Conv1D(filters, kernel_size, padding='valid', activation='relu', strides=1))
+#model.add(Conv1D(128, 5, padding='valid', activation='relu'))
 
 #print('** Convolutional Layer created **')
 
 # Create the pooling layer
 model.add(GlobalMaxPooling1D())
+#model.add(MaxPooling1D(5))
 
 #print('** Pooling Layer created **')
 
 # Create the fully connected layer
 model.add(Dense(hidden_dims))
-model.add(Dropout(0.2))
+
+#model.add(Dropout(0.2))
 model.add(Activation('relu'))
 
 #print('** Dense Layer ReLu created **')
@@ -426,6 +450,7 @@ model.add(Activation('softmax'))
 # Add optimization method, loss function and optimization value
 #model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 model.compile(loss='categorical_crossentropy', optimizer='adam')
+model.summary()
 
 #print('** Model compiled **')
 
@@ -448,42 +473,25 @@ history = model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, vali
 #print('\nValidation loss (with test data): ', history.history['loss'])
 
 # Evaluate the trained model, using the test data
-score = model.evaluate(x_test, y_test, batch_size=batch_size)
+#score = model.evaluate(x_test, y_test, batch_size=batch_size)
 
 #print('\n** Score**\n{}'.format(score))
 
 #print('history.history:')
 #print(history.history)
 
-'''
-
-Y_pred = model.predict(x_test)
-# Assign most probable label
-y_pred = np.argmax(Y_pred, axis=1)
-
-print('Y_pred: {}'.format(Y_pred))
-print('\nPredicted labels (from test data):'.format(y_pred))
-print('len Predicted labels (from test data):'.format(len(y_pred)))
-
-
-test_yp = model.predict(x_test, batch_size=batch_size, verbose=0)
-r2test = r2_score(y_test, test_yp)
-
-print('y_predicted string: {}'.format(np.array2string(test_yp)))
-print('y_predicted: {}'.format(test_yp))
-print('r2_test: {}'.format(r2test))
-'''
-
 classes = model.predict_classes(x_test, batch_size=1)
-#print('classes: {}'.format(classes))
+print('\n** Classes: {}'.format(classes))
 
 # te_dict_words_labels: {'null': 0, 'advise': 1, 'mechanism': 2, 'effect': 3, 'int': 4}
 # reverse --> 0: null...
 te_dict_words_labels_reverse = {indi: ni for indi, ni in enumerate(set(te_words_list_labels))}
+print('\n** te_dict_words_labels_reverse: {}\n'.format(te_dict_words_labels_reverse))
+
 
 te_dict_words_labels_more = []
 for c in classes:
-    print(c)
+    #print(c)
     # afegir resultats a la llista te_results
     if c == te_dict_words_labels['null']:
         is_ddi = '0'
