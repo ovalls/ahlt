@@ -6,6 +6,11 @@ from os import listdir
 from xml.dom.minidom import parse
 from nltk.tokenize import word_tokenize
 
+import multiprocessing
+from gensim.models import Word2Vec
+import gensim
+from time import time  # To time our operations
+
 import numpy as np
 
 import keras
@@ -162,6 +167,10 @@ tr_labels_list.append(tr_temp_labels)    # convertim llista de lables a llista d
 #print('\n\n** Llista FINAL TRAIN **\n{}'.format(tr_sentences_list))
 #print('\n\n** Labels FINAL TRAIN **\n{}'.format(tr_labels_list))
 
+print('\ntr_sentences_list[4]: {}'.format(tr_sentences_list[4]))
+
+#################################### DICCIONARIS ############################################
+
 # TRAIN Posem totes les paraules de totes les sentences a una llista
 tr_words_list = []
 for l in tr_sentences_list:
@@ -188,16 +197,64 @@ tr_dict_words_labels = {ni: indi for indi, ni in enumerate(set(tr_words_list_lab
 #numbers = [dict_words[ni] for ni in words_list]
 #print('numbers: {}'.format(numbers))
 print('\n** tr_dict_words_labels: {}'.format(tr_dict_words_labels))
+print('\n** tr_dict_words: {}'.format(tr_dict_words))
+
+
+#################################### EMBEDDINGS ################################################
+
+#  Ara que ja tinc les sentences com a llistes de paraules, ja puc crear els Embeddings
+# Create Embeddings (word2vec)
+model_sentences = gensim.models.Word2Vec(tr_sentences_list, size=300, window=5, min_count=1, workers=10)
+model_sentences.train(tr_sentences_list, total_examples=len(tr_sentences_list), epochs=10)
+
+print('\nmodel sentences:\n{}'.format(model_sentences.wv))
+print('\nraw vector arrays of sentences:\n{}'.format(model_sentences.wv.syn0))
+print('\nDrugX: {}'.format(model_sentences.wv['DrugX']))
+
+# Create embedding matrix
+embedding_matrix = np.zeros((len(tr_unique_words), 300))
+for w, i in tr_dict_words.items():
+    embedding_vector = model_sentences.wv[w]
+    if embedding_vector is not None:
+        embedding_matrix[i] = embedding_vector
+
+print('\nEmbedding matrix[3]: {}'.format(embedding_matrix[3]))
+
 
 #print(sentences_list[0][1])
 #print(dict_words[sentences_list[0][1]])
 #print(sentences_list[0][4])
 #print(dict_words[sentences_list[0][4]])
 
+
+
+#################################### GLOVE EMBEDDINGS ################################################
+'''
+# load the whole embedding into memory
+embeddings_index = dict()
+f = open('glove.6B.300d.txt')
+for line in f:
+	values = line.split()
+	word = values[0]
+	coefs = np.asarray(values[1:], dtype='float32')
+	embeddings_index[word] = coefs
+f.close()
+print('Loaded %s word vectors.' % len(embeddings_index))
+# create a weight matrix for words in training docs
+embedding_matrix_glove = np.zeros((len(tr_unique_words), 300))
+for word, i in tr_dict_words.items():
+	embedding_vector = embeddings_index.get(word)
+	if embedding_vector is not None:
+		embedding_matrix_glove[i] = embedding_vector
+'''
+
+#################################### WORDS a INTS ################################################
+
 # sentences_list convertida a indexos (índex assignat a cada paraula) -- categorical
 for l in range(0, len(tr_sentences_list)):
     for w in range(0, len(tr_sentences_list[l])):
-        tr_sentences_list[l][w] = tr_dict_words[tr_sentences_list[l][w]]
+        tr_sentences_list[l][w] = str(tr_dict_words[tr_sentences_list[l][w]])
+# he convertit a str pq. sinó gensim peta, pq. vol llista d'strings, no llista de números
 
 #print('\n** indexes sentences_list tr: {}'.format(tr_sentences_list))
 
@@ -206,7 +263,8 @@ for l in range(0, len(tr_labels_list)):
     for w in range(0, len(tr_labels_list[l])):
         tr_labels_list[l][w] = tr_dict_words_labels[tr_labels_list[l][w]]
 
-#print('\n** indexes labels_list tr: {}'.format(tr_labels_list))
+print('\n** indexes labels_list tr: {}'.format(tr_labels_list))
+
 
 ###############################################################
 ################################ TEST SET #####################
@@ -309,6 +367,8 @@ te_labels_list.append(te_temp_labels)    # convertim llista de lables a llista d
 #print('\n\n** Labels FINAL TEST **\n{}'.format(te_labels_list))
 
 
+#################################### DICCIONARIS ############################################
+
 # TEST Posem totes les paraules de totes les sentences a una llista
 te_words_list = []
 for l in te_sentences_list:
@@ -329,11 +389,6 @@ te_unique_words_labels = set(te_words_list_labels)
 #print('len: {}'.format(len(te_unique_words_labels)))
 
 
-############################
-#######tr_dict_words = {ni: indi for indi, ni in enumerate(set(tr_words_list))}
-####### diccionary -- per a les LABELS hem de fer servir el de train, sinó desquadra pq. cada un li dóna el valor q vol
-#######tr_dict_words_labels = {ni: indi for indi, ni in enumerate(set(tr_words_list_labels))}
-
 # Dictionary of unique words with an index number assigned
 #different words in the set
 te_dict_words = {ni: indi for indi, ni in enumerate(set(te_words_list))}
@@ -343,6 +398,9 @@ print('** te_dict_words_labels: {}'.format(te_dict_words_labels))
 
 #numbers = [te_dict_words_labels[ni] for ni in te_labels_list[0]]
 #print('\n** numbers for labels: {}'.format(numbers))
+
+
+#################################### WORDS a INTS ################################################
 
 # sentences_list convertida a indexos (índex assignat a cada paraula) -- categorical
 for l in range(0, len(te_sentences_list)):
@@ -357,6 +415,7 @@ for l in range(0, len(te_labels_list)):
         te_labels_list[l][w] = te_dict_words_labels[te_labels_list[l][w]]
 
 #print('\n** indexes labels_list te: {}'.format(te_labels_list))
+
 
 ############################################################################################
 ################################ LEARNING Convolutional Neural Network #####################
@@ -378,11 +437,11 @@ print('* y_test[0]\n {}\n* y_test[100]\n {}'.format(y_test[0], y_test[100]))
 print('** -------- FI DINS ARRAYS ---------- **')
 
 
-# ja els tinc categorical, no cal que posi keras.utils.to_categorical
-num_classes = np.max(y_train) + 1       # (4 categories + no-categoria)
-#print('Num classes: {}'.format(num_classes))
+num_classes = np.max(y_train) + 1       # (4 categories + no-categoria)            ###
+print('Num classes: {}'.format(num_classes))
 
-max_words = len(tr_unique_words) + 1    # Keras: input_dim: int > 0. Size of the vocabulary, i.e. maximum integer index + 1.
+max_words = len(tr_unique_words)    # size of vocabulary
+#max_words = len(tr_unique_words) + 1    # Keras: input_dim: int > 0. Size of the vocabulary, i.e. maximum integer index + 1.
 embedding_dims = 300        # Keras: Dimension of the dense embedding.
 # number of filters = number of output channels
 #filters = 256               # Keras: the dimensionality of the output space (i.e. the number of output filters in the convolution).
@@ -393,9 +452,9 @@ kernel_size = 5 # original
 
 hidden_dims = 128
 # original 150
-#batch_size = 64
-batch_size = 128
-epochs = 2
+batch_size = 64
+#batch_size = 128
+epochs = 10
 
 # max number of words in a sentence
 maxlen_train = len(max(x_train,key=len))
@@ -416,22 +475,27 @@ x_test = sequence.pad_sequences(x_test, maxlen=maxlen)
 model = Sequential()
 
 # Created Embedding (Input) Layer (max_words) --> Convolutional Layer
-model.add(Embedding(max_words, embedding_dims, input_length=maxlen))
+#model.add(Embedding(max_words, embedding_dims, input_length=maxlen))
+
+# weights from pre-trained embeddings
+model.add(Embedding(max_words, embedding_dims, weights=[embedding_matrix], input_length=maxlen))
+# weights from Glove embeddings
+#model.add(Embedding(max_words, embedding_dims, weights=[embedding_matrix_glove], input_length=maxlen))
 #model.add(Dropout(0.2))  # masks various input values
 
-#print('\n ** Embedding Layer created **')
+print('\n ** Embedding Layer created **')
 
 # Create the convolutional layer
 model.add(Conv1D(filters, kernel_size, padding='valid', activation='relu', strides=1))
 #model.add(Conv1D(128, 5, padding='valid', activation='relu'))
 
-#print('** Convolutional Layer created **')
+print('** Convolutional Layer created **')
 
 # Create the pooling layer
 model.add(GlobalMaxPooling1D())
 #model.add(MaxPooling1D(5))
 
-#print('** Pooling Layer created **')
+print('** Pooling Layer created **')
 
 # Create the fully connected layer
 model.add(Dense(hidden_dims))
@@ -439,46 +503,36 @@ model.add(Dense(hidden_dims))
 #model.add(Dropout(0.2))
 model.add(Activation('relu'))
 
-#print('** Dense Layer ReLu created **')
+print('** Dense Layer ReLu created **')
 
 # Create the output layer (num_classes)
 model.add(Dense(num_classes))
 model.add(Activation('softmax'))
 
-#print('** Dense Layer Softmax created **')
+print('** Dense Layer Softmax created **')
 
 # Add optimization method, loss function and optimization value
 #model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 model.compile(loss='categorical_crossentropy', optimizer='adam')
 model.summary()
 
-#print('** Model compiled **')
-
-'''
-print('type, shape xtrain: {} / {}'.format(type(x_train),np.shape(x_train)))
-print('type, shape ytrain: {} / {}'.format(type(x_train),np.shape(y_train)))
-print('type, shape xtest: {} / {}'.format(type(x_train),np.shape(x_test)))
-print('type, shape ytest: {} / {}'.format(type(x_train),np.shape(y_test)))
-
-<class 'numpy.ndarray'>
-<class 'numpy.ndarray'>
-<class 'numpy.ndarray'>
-<class 'numpy.ndarray'>
-'''
+print('** Model compiled **')
 
 # "Fit the model" (train model), using training data
 history = model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, validation_data=(x_test, y_test))
 
-#print('** Model fit **')
+print('** Model fit **')
 #print('\nValidation loss (with test data): ', history.history['loss'])
 
 # Evaluate the trained model, using the test data
 #score = model.evaluate(x_test, y_test, batch_size=batch_size)
-
 #print('\n** Score**\n{}'.format(score))
 
-#print('history.history:')
-#print(history.history)
+loss, accuracy = model.evaluate(x_test, y_test, verbose=0)
+print('Accuracy: %f' % (accuracy*100))
+
+
+print('history.history:\n{}'.format(history.history))
 
 classes = model.predict_classes(x_test, batch_size=1)
 print('\n** Classes: {}'.format(classes))
@@ -521,3 +575,5 @@ with open(te_resultsdir, "w") as file:
 
 #### AFEGIR
 # dalt: Usage: xxxx com s'executa el programa i què fa
+
+
