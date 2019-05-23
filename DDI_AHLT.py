@@ -92,7 +92,7 @@ for f in listdir(tr_datadir):
             id_e2 = p.attributes["e2"].value
             is_ddi = p.attributes["ddi"].value
             if is_ddi == 'true':                            # Crec que a train no necessito aquest IF !!!!!
-                ddi_type = p.attributes["type"].value
+                ddi_type = p.attributes["type"].value if p.hasAttribute("type") else "effect"
             else:
                 ddi_type = 'null'
             #(is_ddi,ddi_type) = check_interaction(tokens,entities,id_e1,id_e2)
@@ -170,98 +170,27 @@ tr_labels_list.append(tr_temp_labels)    # convertim llista de lables a llista d
 print('\ntr_sentences_list[4]: {}'.format(tr_sentences_list[4]))
 
 #################################### DICCIONARIS ############################################
+UNK = '<unk>'
+idx2symbol = list(set([word for sentence in tr_sentences_list for word in sentence] + [UNK]))
+symbol2idx = {symbol: idx for idx, symbol in enumerate(idx2symbol)}
+UNK_IDX = symbol2idx[UNK]
 
-# TRAIN Posem totes les paraules de totes les sentences a una llista
-tr_words_list = []
-for l in tr_sentences_list:
-    for w in l:
-        tr_words_list.append(w)
-
-tr_unique_words = set(tr_words_list)
-#print('\n** unique words tr: {}'.format(tr_unique_words))
-#print('len: {}'.format(len(tr_unique_words)))
-
-tr_words_list_labels = []
-for l in tr_labels_list:
-    for w in l:
-        tr_words_list_labels.append(w)
-
-tr_unique_words_labels = set(tr_words_list_labels)
-#print('\n** unique words labels tr: {}'.format(tr_unique_words_labels))
-#print('len: {}'.format(len(tr_unique_words_labels)))
-
-# Dictionary of unique words with an index number assigned
-#different words in the set
-tr_dict_words = {ni: indi for indi, ni in enumerate(set(tr_words_list))}
-tr_dict_words_labels = {ni: indi for indi, ni in enumerate(set(tr_words_list_labels))}
-#numbers = [dict_words[ni] for ni in words_list]
-#print('numbers: {}'.format(numbers))
-print('\n** tr_dict_words_labels: {}'.format(tr_dict_words_labels))
-print('\n** tr_dict_words: {}'.format(tr_dict_words))
-
-
-#################################### EMBEDDINGS ################################################
-
-#  Ara que ja tinc les sentences com a llistes de paraules, ja puc crear els Embeddings
-# Create Embeddings (word2vec)
-model_sentences = gensim.models.Word2Vec(tr_sentences_list, size=300, window=5, min_count=1, workers=10)
-model_sentences.train(tr_sentences_list, total_examples=len(tr_sentences_list), epochs=10)
-
-print('\nmodel sentences:\n{}'.format(model_sentences.wv))
-print('\nraw vector arrays of sentences:\n{}'.format(model_sentences.wv.syn0))
-print('\nDrugX: {}'.format(model_sentences.wv['DrugX']))
-
-# Create embedding matrix
-embedding_matrix = np.zeros((len(tr_unique_words), 300))
-for w, i in tr_dict_words.items():
-    embedding_vector = model_sentences.wv[w]
-    if embedding_vector is not None:
-        embedding_matrix[i] = embedding_vector
-
-print('\nEmbedding matrix[3]: {}'.format(embedding_matrix[3]))
-
-
-#print(sentences_list[0][1])
-#print(dict_words[sentences_list[0][1]])
-#print(sentences_list[0][4])
-#print(dict_words[sentences_list[0][4]])
-
-
-
-#################################### GLOVE EMBEDDINGS ################################################
-'''
-# load the whole embedding into memory
-embeddings_index = dict()
-f = open('glove.6B.300d.txt')
-for line in f:
-	values = line.split()
-	word = values[0]
-	coefs = np.asarray(values[1:], dtype='float32')
-	embeddings_index[word] = coefs
-f.close()
-print('Loaded %s word vectors.' % len(embeddings_index))
-# create a weight matrix for words in training docs
-embedding_matrix_glove = np.zeros((len(tr_unique_words), 300))
-for word, i in tr_dict_words.items():
-	embedding_vector = embeddings_index.get(word)
-	if embedding_vector is not None:
-		embedding_matrix_glove[i] = embedding_vector
-'''
+idx2label =  list(set([label for labels in tr_labels_list for label in labels] + [UNK]))
+label2idx = {label: idx for idx, label in enumerate(idx2label)}
 
 #################################### WORDS a INTS ################################################
 
 # sentences_list convertida a indexos (índex assignat a cada paraula) -- categorical
 for l in range(0, len(tr_sentences_list)):
     for w in range(0, len(tr_sentences_list[l])):
-        tr_sentences_list[l][w] = str(tr_dict_words[tr_sentences_list[l][w]])
-# he convertit a str pq. sinó gensim peta, pq. vol llista d'strings, no llista de números
+        tr_sentences_list[l][w] = symbol2idx.get(tr_sentences_list[l][w], UNK_IDX)
 
 #print('\n** indexes sentences_list tr: {}'.format(tr_sentences_list))
 
 # labels_list convertida a indexos (índex assignat a cada paraula) [[3, 4, 5, 2, ...]] -- categorical
 for l in range(0, len(tr_labels_list)):
     for w in range(0, len(tr_labels_list[l])):
-        tr_labels_list[l][w] = tr_dict_words_labels[tr_labels_list[l][w]]
+        tr_labels_list[l][w] = label2idx[tr_labels_list[l][w]]
 
 print('\n** indexes labels_list tr: {}'.format(tr_labels_list))
 
@@ -367,52 +296,19 @@ te_labels_list.append(te_temp_labels)    # convertim llista de lables a llista d
 #print('\n\n** Labels FINAL TEST **\n{}'.format(te_labels_list))
 
 
-#################################### DICCIONARIS ############################################
-
-# TEST Posem totes les paraules de totes les sentences a una llista
-te_words_list = []
-for l in te_sentences_list:
-    for w in l:
-        te_words_list.append(w)
-
-te_unique_words = set(te_words_list)
-#print('\n** unique words te: {}'.format(te_unique_words))
-#print('len: {}'.format(len(te_unique_words)))
-
-te_words_list_labels = []
-for l in te_labels_list:
-    for w in l:
-        te_words_list_labels.append(w)
-
-te_unique_words_labels = set(te_words_list_labels)
-#print('\n** unique words labels te: {}'.format(te_unique_words_labels))
-#print('len: {}'.format(len(te_unique_words_labels)))
-
-
-# Dictionary of unique words with an index number assigned
-#different words in the set
-te_dict_words = {ni: indi for indi, ni in enumerate(set(te_words_list))}
-####te_dict_words_labels = {ni: indi for indi, ni in enumerate(set(te_words_list_labels))}
-te_dict_words_labels = tr_dict_words_labels         # han de ser iguals els de train i els de test!
-print('** te_dict_words_labels: {}'.format(te_dict_words_labels))
-
-#numbers = [te_dict_words_labels[ni] for ni in te_labels_list[0]]
-#print('\n** numbers for labels: {}'.format(numbers))
-
-
 #################################### WORDS a INTS ################################################
 
 # sentences_list convertida a indexos (índex assignat a cada paraula) -- categorical
 for l in range(0, len(te_sentences_list)):
     for w in range(0, len(te_sentences_list[l])):
-        te_sentences_list[l][w] = te_dict_words[te_sentences_list[l][w]]
+        te_sentences_list[l][w] = symbol2idx.get(te_sentences_list[l][w], UNK_IDX)
 
 #print('\n** indexes sentences_list te: {}'.format(te_sentences_list))
 
 # labels_list convertida a indexos (índex assignat a cada paraula) [[3, 4, 5, 2, ...]] -- categorical
 for l in range(0, len(te_labels_list)):
     for w in range(0, len(te_labels_list[l])):
-        te_labels_list[l][w] = te_dict_words_labels[te_labels_list[l][w]]
+        te_labels_list[l][w] = label2idx[te_labels_list[l][w]]
 
 #print('\n** indexes labels_list te: {}'.format(te_labels_list))
 
@@ -423,9 +319,17 @@ for l in range(0, len(te_labels_list)):
 
 # Train and Test sets (all numpy arrays)
 x_train = tr_sentences_list
-y_train = np.asarray(tr_labels_list[0])         # Tinc [[3, 4, 3, 2, 1...]]: així trec llista fora
+y_train = np.asarray(tr_labels_list[0])
 x_test = te_sentences_list
 y_test = np.asarray(te_labels_list[0])
+
+# Ratio of each class in the training data
+for v in range(len(idx2label)):
+  print("{}: {}".format(v, (y_train == v).sum()/y_train.shape[0]))
+
+class_counts = {v: (y_train == v).sum() for v in range(len(idx2label))}
+max_count = max(class_counts.values())
+class_weights = {v: float(max_count)/class_counts[v] for v in range(len(idx2label))}
 
 
 ### A veure què tinc dins dels arrays ###
@@ -440,8 +344,7 @@ print('** -------- FI DINS ARRAYS ---------- **')
 num_classes = np.max(y_train) + 1       # (4 categories + no-categoria)            ###
 print('Num classes: {}'.format(num_classes))
 
-max_words = len(tr_unique_words)    # size of vocabulary
-#max_words = len(tr_unique_words) + 1    # Keras: input_dim: int > 0. Size of the vocabulary, i.e. maximum integer index + 1.
+max_words = len(idx2symbol)    # size of vocabulary
 embedding_dims = 300        # Keras: Dimension of the dense embedding.
 # number of filters = number of output channels
 #filters = 256               # Keras: the dimensionality of the output space (i.e. the number of output filters in the convolution).
@@ -455,6 +358,7 @@ hidden_dims = 128
 batch_size = 64
 #batch_size = 128
 epochs = 10
+
 
 # max number of words in a sentence
 maxlen_train = len(max(x_train,key=len))
@@ -475,10 +379,10 @@ x_test = sequence.pad_sequences(x_test, maxlen=maxlen)
 model = Sequential()
 
 # Created Embedding (Input) Layer (max_words) --> Convolutional Layer
-#model.add(Embedding(max_words, embedding_dims, input_length=maxlen))
+model.add(Embedding(max_words, embedding_dims, input_length=maxlen))
 
 # weights from pre-trained embeddings
-model.add(Embedding(max_words, embedding_dims, weights=[embedding_matrix], input_length=maxlen))
+#model.add(Embedding(max_words, embedding_dims, weights=[embedding_matrix], input_length=maxlen))
 # weights from Glove embeddings
 #model.add(Embedding(max_words, embedding_dims, weights=[embedding_matrix_glove], input_length=maxlen))
 #model.add(Dropout(0.2))  # masks various input values
@@ -512,14 +416,15 @@ model.add(Activation('softmax'))
 print('** Dense Layer Softmax created **')
 
 # Add optimization method, loss function and optimization value
-#model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-model.compile(loss='categorical_crossentropy', optimizer='adam')
+
+optimizer = keras.optimizers.Adam(lr=0.001)
+model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 model.summary()
 
 print('** Model compiled **')
 
 # "Fit the model" (train model), using training data
-history = model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, validation_data=(x_test, y_test))
+history = model.fit(x_train, y_train, batch_size=batch_size, epochs=epochs, validation_data=(x_test, y_test)) # , class_weight=class_weights)
 
 print('** Model fit **')
 #print('\nValidation loss (with test data): ', history.history['loss'])
@@ -535,24 +440,20 @@ print('Accuracy: %f' % (accuracy*100))
 print('history.history:\n{}'.format(history.history))
 
 classes = model.predict_classes(x_test, batch_size=1)
+
+
 print('\n** Classes: {}'.format(classes))
 
 # te_dict_words_labels: {'null': 0, 'advise': 1, 'mechanism': 2, 'effect': 3, 'int': 4}
 # reverse --> 0: null...
-te_dict_words_labels_reverse = {indi: ni for indi, ni in enumerate(set(te_words_list_labels))}
-print('\n** te_dict_words_labels_reverse: {}\n'.format(te_dict_words_labels_reverse))
-
 
 te_dict_words_labels_more = []
+NULL_CLASS = label2idx['null']
 for c in classes:
     #print(c)
     # afegir resultats a la llista te_results
-    if c == te_dict_words_labels['null']:
-        is_ddi = '0'
-        ddi_type = 'null'
-    else:
-        is_ddi = '1'
-        ddi_type = te_dict_words_labels_reverse[c]
+    is_ddi = '0' if c == NULL_CLASS else '1'
+    ddi_type = idx2label[c]
     te_dict_words_labels_more.append(is_ddi + "|" + ddi_type)
 
 #print(sid + "|" + id_e1 + "|" + id_e2 + "|" + is_ddi + "|" + ddi_type)
